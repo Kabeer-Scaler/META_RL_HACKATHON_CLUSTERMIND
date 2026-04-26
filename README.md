@@ -3,6 +3,10 @@
 > A guarded adversarial OpenEnv benchmark for long-horizon AI infrastructure control.
 > Built for the Meta RL Hackathon Finale / OpenEnv Phase 2.
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Kabeer-Scaler/META_RL_HACKATHON_CLUSTERMIND/blob/main/notebooks/ClusterMind_TRL_Colab.ipynb)
+
+> **Note:** If GitHub shows the notebook as raw JSON, click the badge above to open it directly in Colab.
+
 ClusterMind is **not** a GPU allocator. It is a compact, fast, OpenEnv-compliant
 RL environment in which an LLM/RL agent operates a fragile AI compute cluster
 under partial observability, cascading failures, energy and cooling budgets,

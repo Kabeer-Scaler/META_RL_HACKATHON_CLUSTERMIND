@@ -72,7 +72,7 @@ def _agent_summary(payload: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
             "avg_cascade_count": s.get("avg_cascade_count", 0.0),
             "avg_guardrail_violations": s.get("avg_guardrail_violations", 0.0),
             "critical_completion_rate": s.get("critical_completion_rate", 0.0),
-            "avg_cluster_health": s.get("avg_avg_cluster_health", 0.0),
+            "avg_cluster_health": s.get("avg_cluster_health", s.get("avg_avg_cluster_health", 0.0)),
             "chaos_survival": s.get("avg_reward", 0.0) * s.get("critical_completion_rate", 0.0),
         }
     return out
@@ -82,7 +82,8 @@ def _agent_summary(payload: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
 # Plots
 # ---------------------------------------------------------------------------
 
-def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str) -> bool:
+def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str,
+                      algo_label: str = "") -> bool:
     rl_entries = [e for e in training_logs if e.get("phase") == "rl" and isinstance(e.get("reward"), (int, float))]
     if not rl_entries:
         rl_entries = [e for e in training_logs if isinstance(e.get("reward"), (int, float))]
@@ -96,6 +97,7 @@ def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str) -> boo
         )
     rewards = [float(e["reward"]) for e in rl_entries]
     episodes = [e.get("episode", e.get("step", i)) for i, e in enumerate(rl_entries)]
+    suffix = f"  [{algo_label}]" if algo_label else ""
     plt.figure(figsize=(7, 4))
     plt.plot(episodes, rewards, label="episode reward", linewidth=1.4, color="#2980b9")
     if len(rewards) >= 5:
@@ -104,7 +106,7 @@ def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str) -> boo
                     for i in range(len(rewards))]
         plt.plot(episodes, smoothed, label=f"moving avg (window={window})",
                  linewidth=2.0, color="#c0392b")
-    plt.title("Reward Curve (live env rollouts)")
+    plt.title(f"Reward Curve (live env rollouts){suffix}")
     plt.xlabel("Training episode")
     plt.ylabel("Episode reward")
     plt.legend()
@@ -115,17 +117,19 @@ def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str) -> boo
     return True
 
 
-def plot_loss_curve(training_logs: List[Dict[str, Any]], out_path: str) -> bool:
+def plot_loss_curve(training_logs: List[Dict[str, Any]], out_path: str,
+                    algo_label: str = "") -> bool:
     sft = [e for e in training_logs if e.get("phase") == "sft" and isinstance(e.get("loss"), (int, float))]
     rl = [e for e in training_logs if e.get("phase") == "rl" and isinstance(e.get("loss"), (int, float))]
     if not sft and not rl:
-        # Try generic.
         rl = [e for e in training_logs if isinstance(e.get("loss"), (int, float))]
     if not sft and not rl:
         return _placeholder_plot(
             out_path, title="Loss Curve", xlabel="Update step", ylabel="Loss",
             note="No training_logs.jsonl found — run scripts/train_trl.py to populate.",
         )
+    sft_steps: List = []
+    suffix = f"  [{algo_label}]" if algo_label else ""
     plt.figure(figsize=(7, 4))
     if sft:
         sft_steps = [e.get("epoch", e.get("step", i)) for i, e in enumerate(sft)]
@@ -133,11 +137,11 @@ def plot_loss_curve(training_logs: List[Dict[str, Any]], out_path: str) -> bool:
         plt.plot(sft_steps, sft_losses, label="SFT loss (warm-start)",
                  color="#8e44ad", linewidth=1.6, marker="o")
     if rl:
-        rl_x = [e.get("episode", i) + (max(sft_steps) if sft else 0) for i, e in enumerate(rl)]
+        rl_x = [e.get("episode", i) + (max(sft_steps) if sft_steps else 0) for i, e in enumerate(rl)]
         rl_losses = [float(e["loss"]) for e in rl]
         plt.plot(rl_x, rl_losses, label="RL policy loss",
                  color="#c0392b", linewidth=1.4)
-    plt.title("Loss Curve (SFT warm-start + REINFORCE)")
+    plt.title(f"Loss Curve (SFT + RL){suffix}")
     plt.xlabel("Update step")
     plt.ylabel("Loss")
     plt.legend()
@@ -246,6 +250,8 @@ def main():
     parser.add_argument("--evaluation", type=str, default=os.path.join(RESULTS, "evaluation_metrics.json"))
     parser.add_argument("--training-logs", type=str, default=os.path.join(RESULTS, "training_logs.jsonl"))
     parser.add_argument("--output-dir", type=str, default=RESULTS)
+    parser.add_argument("--trained-results", type=str,
+                        default=os.path.join(RESULTS, "trained_results.json"))
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -253,6 +259,17 @@ def main():
     baseline = _load_json(args.baseline) or {}
     evaluation = _load_json(args.evaluation)
     training_logs = _load_jsonl(args.training_logs)
+
+    # Derive a short label from trained_results.json so the plot titles are honest.
+    trained = _load_json(os.path.join(RESULTS, "trained_results.json")) or {}
+    schema = trained.get("schema", "")
+    algo = trained.get("rl_algo", "")
+    if "policy_net" in schema:
+        algo_label = "policy-net CPU run"
+    elif "llm_lora" in schema:
+        algo_label = f"LoRA/{algo}" if algo else "LoRA run"
+    else:
+        algo_label = algo or ""
 
     # Prefer evaluation_metrics for comparison plots (it includes BaseLLM/SFT/RL),
     # fall back to baseline if no evaluation file.
@@ -264,8 +281,8 @@ def main():
         metrics_summary = _agent_summary(baseline)
 
     plots = [
-        ("reward_curve.png", lambda p: plot_reward_curve(training_logs, p)),
-        ("loss_curve.png", lambda p: plot_loss_curve(training_logs, p)),
+        ("reward_curve.png", lambda p: plot_reward_curve(training_logs, p, algo_label)),
+        ("loss_curve.png", lambda p: plot_loss_curve(training_logs, p, algo_label)),
         ("outage_comparison.png", lambda p: plot_outage_comparison(metrics_summary, p)),
         ("cascade_count_comparison.png", lambda p: plot_cascade_count_comparison(metrics_summary, p)),
         ("critical_job_completion.png", lambda p: plot_critical_job_completion(metrics_summary, p)),
