@@ -594,7 +594,14 @@ def run_llm_pipeline(
     engine: str = "auto",
 ):
     if not _try_llm_stack():
-        print("[LLM] transformers/peft not installed — falling back to policy-net mode.")
+        raise RuntimeError(
+            "LLM stack import failed — see [LLM-stack-check] line above for the "
+            "exact reason (usually a transformers/peft version mismatch). If you "
+            "want automatic fallback to the policy-net path, use --mode auto "
+            "instead of --mode llm. We deliberately do NOT silently fall back "
+            "here so the failure is visible in HF Jobs logs."
+        )
+        # unreachable — kept so static-analysis tools see the legacy fallback intent
         run_policy_net_pipeline(
             log_path=log_path,
             out_results_json=out_results_json,
