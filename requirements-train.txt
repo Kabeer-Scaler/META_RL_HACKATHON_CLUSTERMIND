@@ -6,13 +6,13 @@
 #   - unsloth_zoo 2026.4.9 requires:  trl>=0.18.2, !=0.19.0, <=0.24.0
 #   - we keep transformers/peft loose so Unsloth's pyproject can pick a working pair
 #   - huggingface_hub <2.0 keeps push_to_hub API stable
-# transformers <5.0: peft 0.19.x references BloomPreTrainedModel which was
-#   moved/removed in transformers 5.x; pinning to 4.x keeps that import path
-#   working. This was the silent killer that made auto-mode pick policy-net
-#   on previous Jobs runs.
-# trl in Unsloth's accepted range (>=0.18.2, !=0.19.0, <=0.24.0).
+# Compatibility matrix (verified by pip resolver + runtime imports):
+#   - transformers <5.0  : 4.x still exports BloomPreTrainedModel, which
+#     peft 0.18+ lazy-imports. transformers 5.x removed it -> import error.
+#   - peft >=0.18        : unsloth_zoo requires this (>=0.18.0, !=0.11.0).
+#   - trl in Unsloth's accepted range (>=0.18.2, !=0.19.0, <=0.24.0).
 transformers>=4.46,<5.0
-peft>=0.13,<0.18
+peft>=0.18
 trl>=0.18.2,!=0.19.0,<=0.24.0
 accelerate>=0.34
 bitsandbytes>=0.43,<0.50
