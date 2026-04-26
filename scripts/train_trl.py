@@ -585,6 +585,7 @@ def run_llm_pipeline(
     quick: bool = True,
     rl_algo: str = "auto",
     grpo_group_size: int = 2,
+    hub_model_id: Optional[str] = None,
 ):
     if not _try_llm_stack():
         print("[LLM] transformers/peft not installed — falling back to policy-net mode.")
@@ -911,6 +912,24 @@ def run_llm_pipeline(
     tok.save_pretrained(out_adapter_dir)
     print(f"[OK] saved LoRA adapter + tokenizer to {out_adapter_dir}")
 
+    # ---- Push to Hugging Face Hub ----
+    _hf_token = os.environ.get("HF_TOKEN", "")
+    _hub_id = hub_model_id or os.environ.get("HF_HUB_MODEL_ID", "")
+    if _hub_id and _hf_token:
+        try:
+            from huggingface_hub import login as _hf_login
+            _hf_login(token=_hf_token, add_to_git_credential=False)
+            print(f"[HF Hub] pushing adapter to  https://huggingface.co/{_hub_id}")
+            model.push_to_hub(_hub_id, token=_hf_token)
+            tok.push_to_hub(_hub_id, token=_hf_token)
+            print(f"[HF Hub] done — adapter live at  https://huggingface.co/{_hub_id}")
+        except Exception as _hub_err:
+            print(f"[HF Hub] push failed (non-fatal): {_hub_err}")
+    elif _hub_id and not _hf_token:
+        print("[HF Hub] skipped — HF_TOKEN not set. Add it to Kaggle/Colab secrets.")
+    else:
+        print("[HF Hub] skipped — no --hub-model-id provided.")
+
     summary = {
         "schema": "clustermind.training.llm_lora.v1",
         "base_model": base_model,
@@ -961,6 +980,10 @@ def main():
     parser.add_argument("--grpo-group-size", type=int, default=2,
                         help="K trajectories sampled per seed under GRPO.")
     parser.add_argument("--results-dir", type=str, default=os.path.join(ROOT, "results"))
+    parser.add_argument("--hub-model-id", type=str, default="",
+                        help="HF Hub repo to push the trained LoRA adapter to, "
+                             "e.g. 'your-username/clustermind-lora'. "
+                             "Requires HF_TOKEN env var or Kaggle/Colab secret.")
     args = parser.parse_args()
 
     # --full takes precedence over --quick and bumps episode budgets.
@@ -1002,6 +1025,7 @@ def main():
             quick=args.quick or args.rl_episodes <= 12,
             rl_algo=args.rl_algo,
             grpo_group_size=args.grpo_group_size,
+            hub_model_id=args.hub_model_id or "",
         )
     else:
         run_policy_net_pipeline(
