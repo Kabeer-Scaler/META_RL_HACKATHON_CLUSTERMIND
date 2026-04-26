@@ -1,22 +1,24 @@
 # Training dependencies for HF Jobs runs.
-# Base image is expected to provide torch + CUDA (e.g. pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime).
-# This file only adds the HF + RL stack and the small repo deps.
+# Base image must provide torch + CUDA (e.g. pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime).
+# This file only adds the HF + RL stack and the repo deps.
 
-# Pinned to last-stable 4.x line — transformers 5.x and peft 0.19/0.20 had
-# silent import-time issues on HF Jobs that made the auto-mode fall back
-# to policy-net. These ranges are validated against torch 2.5.1 + cu124.
-transformers>=4.46,<5.0
-peft>=0.13,<0.18
-trl>=0.11,<0.16
-accelerate>=0.34,<2.0
+# Versions aligned to what Unsloth's transitive deps actually allow:
+#   - unsloth_zoo 2026.4.9 requires:  trl>=0.18.2, !=0.19.0, <=0.24.0
+#   - we keep transformers/peft loose so Unsloth's pyproject can pick a working pair
+#   - huggingface_hub <2.0 keeps push_to_hub API stable
+trl>=0.18.2,!=0.19.0,<=0.24.0
+transformers>=4.46
+peft>=0.13
+accelerate>=0.34
 bitsandbytes>=0.43,<0.50
-huggingface_hub>=0.25,<1.0
+huggingface_hub>=0.25,<2.0
 sentencepiece
 einops
-datasets<4.0
-# Unsloth — 2x faster training, lower VRAM. Pulled from git so it picks up
-# the latest CUDA/torch matrix; the [colab-new] extra is the cleanest install
-# path on fresh containers (works on HF Jobs, Colab, Kaggle).
+datasets
+
+# Unsloth — used ONLY for fast model load + LoRA wrap (2× speed, fused kernels).
+# Pulled from git so it always pairs with the latest torch/CUDA matrix; the
+# [colab-new] extra is the recommended install on fresh containers.
 unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
 
 # Repo deps

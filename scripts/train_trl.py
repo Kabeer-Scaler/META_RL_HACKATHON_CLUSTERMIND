@@ -748,35 +748,60 @@ def run_llm_pipeline(
         )
 
     # Try Hugging Face TRL SFTTrainer first; fall back to a pure-torch loop.
+    # Handles both TRL APIs:
+    #   - TRL <0.13: SFTTrainer(model=, tokenizer=, ...)
+    #   - TRL >=0.13: tokenizer= is deprecated in favour of processing_class=
+    #   - TRL >=0.20: tokenizer= is removed entirely
+    # Also handles SFTConfig field churn (max_seq_length, dataset_text_field
+    # may be present or moved across versions).
     _used_trl_sft = False
     if engine in ("auto", "trl", "unsloth"):
         try:
             from trl import SFTTrainer, SFTConfig
             from datasets import Dataset
+            import inspect as _inspect
+
             random.shuffle(rollouts)
             sft_corpus = [{"text": _format_sft_text(r)} for r in rollouts[:sft_steps]]
             sft_dataset = Dataset.from_list(sft_corpus)
-            sft_args = SFTConfig(
+
+            base_args = dict(
                 output_dir=os.path.join(os.path.dirname(out_adapter_dir), "_sft_tmp"),
                 per_device_train_batch_size=1,
                 gradient_accumulation_steps=4,
                 num_train_epochs=sft_epochs,
                 learning_rate=2e-4,
                 logging_steps=8,
-                max_seq_length=512,
-                dataset_text_field="text",
                 report_to="none",
                 save_strategy="no",
-                packing=False,
                 bf16=torch.cuda.is_bf16_supported() if _use_gpu else False,
                 fp16=(not torch.cuda.is_bf16_supported()) if _use_gpu else False,
             )
-            sft_trainer = SFTTrainer(
+            # Older SFTConfig accepted these directly; newer versions ignore some
+            # of them. Filter to whatever this installed SFTConfig actually accepts.
+            optional_args = dict(
+                max_seq_length=512,
+                dataset_text_field="text",
+                packing=False,
+            )
+            sft_cfg_params = set(_inspect.signature(SFTConfig).parameters.keys())
+            for k, v in optional_args.items():
+                if k in sft_cfg_params:
+                    base_args[k] = v
+            sft_args = SFTConfig(**base_args)
+
+            trainer_kwargs = dict(
                 model=model,
                 train_dataset=sft_dataset,
                 args=sft_args,
-                tokenizer=tok,
             )
+            sft_init_params = set(_inspect.signature(SFTTrainer.__init__).parameters.keys())
+            if "processing_class" in sft_init_params:
+                trainer_kwargs["processing_class"] = tok    # TRL >=0.13
+            elif "tokenizer" in sft_init_params:
+                trainer_kwargs["tokenizer"] = tok           # TRL <0.13
+            sft_trainer = SFTTrainer(**trainer_kwargs)
+
             sft_train_out = sft_trainer.train()
             _used_trl_sft = True
             avg_loss = float(sft_train_out.training_loss)
@@ -786,7 +811,8 @@ def run_llm_pipeline(
         except ImportError as _e:
             print(f"[LLM-SFT] trl not available ({_e}); using pure-torch SFT loop")
         except Exception as _e:
-            print(f"[LLM-SFT] trl SFTTrainer failed ({_e}); using pure-torch SFT loop")
+            print(f"[LLM-SFT] trl SFTTrainer failed ({type(_e).__name__}: {_e}); "
+                  f"using pure-torch SFT loop")
 
     if not _used_trl_sft:
         for epoch in range(sft_epochs):
