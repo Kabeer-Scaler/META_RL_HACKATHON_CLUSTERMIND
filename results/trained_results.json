@@ -1,0 +1,96 @@
+{
+  "schema": "clustermind.training.policy_net.v1",
+  "rl_algo": "reinforce",
+  "rl_algo_note": "policy-net path uses REINFORCE with moving baseline (no LLM stack present)",
+  "frozen_base": false,
+  "lora_only": false,
+  "n_features": 15,
+  "feature_names": [
+    "step_norm",
+    "cluster_health",
+    "energy_remaining",
+    "queue_pressure",
+    "avg_temp_norm",
+    "active_outage_norm",
+    "cascade_norm",
+    "n_queued_norm",
+    "n_running_norm",
+    "n_critical_norm",
+    "max_temp_norm",
+    "min_free_gpus_norm",
+    "max_degradation_visible_norm",
+    "any_overheated",
+    "any_warning"
+  ],
+  "n_actions": 9,
+  "abstract_actions": [
+    "NO_OP",
+    "ALLOCATE_JOB",
+    "DELAY_JOB",
+    "THROTTLE_NODE",
+    "INCREASE_COOLING",
+    "RUN_MAINTENANCE",
+    "MIGRATE_JOB",
+    "INSPECT_NODE",
+    "SHUTDOWN_NODE"
+  ],
+  "sft_episodes": 4,
+  "rl_episodes": 8,
+  "eval_episodes": 3,
+  "rl_rewards": [
+    13.313287689571519,
+    11.65632593787798,
+    8.938782800444805,
+    11.526912915227637,
+    8.358522742791616,
+    10.605509153181542,
+    12.836405225200089,
+    11.80236488063215
+  ],
+  "rl_losses": [
+    100.06555938720703,
+    46.024688720703125,
+    33.08014678955078,
+    73.03165435791016,
+    9.885831832885742,
+    29.981748580932617,
+    30.699047088623047,
+    4.2649455070495605
+  ],
+  "eval_mean_reward": 12.843855108554356,
+  "eval_episodes_detail": [
+    {
+      "scenario": "demand_spike",
+      "level": 2,
+      "reward": 14.036996876347208,
+      "outage_count": 0,
+      "cascade_count": 0,
+      "completed_critical": 4,
+      "total_critical": 6,
+      "guardrail_violations": 2,
+      "cluster_health": 1.0
+    },
+    {
+      "scenario": "cooling_failure",
+      "level": 3,
+      "reward": 11.764375299600202,
+      "outage_count": 3,
+      "cascade_count": 1,
+      "completed_critical": 3,
+      "total_critical": 4,
+      "guardrail_violations": 1,
+      "cluster_health": 0.7
+    },
+    {
+      "scenario": "hidden_degradation",
+      "level": 4,
+      "reward": 12.73019314971566,
+      "outage_count": 2,
+      "cascade_count": 0,
+      "completed_critical": 2,
+      "total_critical": 2,
+      "guardrail_violations": 0,
+      "cluster_health": 0.8
+    }
+  ]
+}

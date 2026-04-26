@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code session state (do not commit)
+.claude/
+.claude_*/
+
+# Heavy LoRA adapters from Colab runs (commit explicitly when needed)
+results/adapters/clustermind_lora/
+
+# Local secrets / env
+.env
+.env.*
+*.pem
+*.key

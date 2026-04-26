@@ -1,0 +1,1335 @@
+{
+  "episode_id": "ep_e1070bbd",
+  "records": [
+    {
+      "record_id": "ep_e1070bbd_step_001",
+      "step": 1,
+      "observation_summary": {
+        "step": 1,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.8,
+        "energy_remaining": 0.9,
+        "active_outages": 2,
+        "cascade_count": 0,
+        "average_temperature": 46.38,
+        "completed_jobs": 0,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_1",
+        "node_id": "gpu_2",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_1->gpu_2"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 0.0,
+        "normal_job_completion": 0.0,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.8,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.9004744507014365,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 1.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.11502372253507182
+      },
+      "guardrail_flags": [],
+      "failure_events": [
+        "gpu_0",
+        "gpu_9"
+      ],
+      "cascade_events": [
+        "shock:gpu_0->gpu_4,gpu_1",
+        "shock:gpu_9->gpu_8,gpu_5"
+      ],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.019372300109847897,
+        "gpu_3": 0.19172490714169735,
+        "gpu_4": 0.179103438952963,
+        "gpu_5": 0.019656174022734733,
+        "gpu_6": 0.012318012648988292,
+        "gpu_7": 0.0065874777335176386,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_1->gpu_2",
+        "node_failed:gpu_0",
+        "node_failed:gpu_9"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_002",
+      "step": 2,
+      "observation_summary": {
+        "step": 2,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.7,
+        "energy_remaining": 0.749,
+        "active_outages": 3,
+        "cascade_count": 1,
+        "average_temperature": 44.39,
+        "completed_jobs": 0,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_2",
+        "node_id": "gpu_7",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_2->gpu_7"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 0.0,
+        "normal_job_completion": 0.0,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.7,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.7485863631493063,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.5,
+        "cascade_penalty": 0.6,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.0924293181574653
+      },
+      "guardrail_flags": [],
+      "failure_events": [
+        "gpu_3"
+      ],
+      "cascade_events": [
+        "linked:gpu_3@step2",
+        "shock:gpu_3->gpu_2,gpu_4"
+      ],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.193103438952963,
+        "gpu_5": 0.019656174022734733,
+        "gpu_6": 0.012318012648988292,
+        "gpu_7": 0.0065874777335176386,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_2->gpu_7",
+        "node_failed:gpu_3"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_003",
+      "step": 3,
+      "observation_summary": {
+        "step": 3,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.7,
+        "energy_remaining": 0.599,
+        "active_outages": 3,
+        "cascade_count": 1,
+        "average_temperature": 42.19,
+        "completed_jobs": 0,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_4",
+        "node_id": "gpu_6",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_4->gpu_6"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 0.0,
+        "normal_job_completion": 0.0,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.7,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.598731093561362,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.3849365546780681
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.193103438952963,
+        "gpu_5": 0.019656174022734733,
+        "gpu_6": 0.012318012648988292,
+        "gpu_7": 0.0065874777335176386,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_4->gpu_6"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_004",
+      "step": 4,
+      "observation_summary": {
+        "step": 4,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.7,
+        "energy_remaining": 0.462,
+        "active_outages": 3,
+        "cascade_count": 1,
+        "average_temperature": 40.39,
+        "completed_jobs": 2,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_0",
+        "node_id": "gpu_5",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_0->gpu_5"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.0,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.7,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.4622690957266396,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.628113454786332
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.193103438952963,
+        "gpu_5": 0.019656174022734733,
+        "gpu_6": 0.012318012648988292,
+        "gpu_7": 0.0065874777335176386,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_0->gpu_5",
+        "job_arrivals:5"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_005",
+      "step": 5,
+      "observation_summary": {
+        "step": 5,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.6,
+        "energy_remaining": 0.315,
+        "active_outages": 4,
+        "cascade_count": 2,
+        "average_temperature": 40.2,
+        "completed_jobs": 2,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_crisis_0",
+        "node_id": "gpu_7",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_crisis_0->gpu_7"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.0,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.6,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.31501230951622067,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.5,
+        "cascade_penalty": 0.6,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.05,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.29825061547581094
+      },
+      "guardrail_flags": [
+        "Repetition"
+      ],
+      "failure_events": [
+        "gpu_6"
+      ],
+      "cascade_events": [
+        "linked:gpu_6@step5",
+        "shock:gpu_6->gpu_5,gpu_7"
+      ],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.193103438952963,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_crisis_0->gpu_7",
+        "node_failed:gpu_6"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_006",
+      "step": 6,
+      "observation_summary": {
+        "step": 6,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.253,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 38.5,
+        "completed_jobs": 3,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_crisis_2",
+        "node_id": "gpu_8",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_crisis_2->gpu_8"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.2527499280284141,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.5,
+        "cascade_penalty": 0.6,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.05,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.3341374964014206
+      },
+      "guardrail_flags": [
+        "Repetition"
+      ],
+      "failure_events": [
+        "gpu_4"
+      ],
+      "cascade_events": [
+        "linked:gpu_4@step6"
+      ],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_crisis_2->gpu_8",
+        "node_failed:gpu_4"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_007",
+      "step": 7,
+      "observation_summary": {
+        "step": 7,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.177,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 37.41,
+        "completed_jobs": 3,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_crisis_4",
+        "node_id": "gpu_5",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_crisis_4->gpu_5"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.17699171886435716,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.05,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.6303495859432178
+      },
+      "guardrail_flags": [
+        "Repetition"
+      ],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_crisis_4->gpu_5"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_008",
+      "step": 8,
+      "observation_summary": {
+        "step": 8,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.073,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 36.84,
+        "completed_jobs": 4,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_crisis_3",
+        "node_id": "gpu_1",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_crisis_3->gpu_1"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.07293410638492187,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.05,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.625146705319246
+      },
+      "guardrail_flags": [
+        "Repetition"
+      ],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_crisis_3->gpu_1"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_009",
+      "step": 9,
+      "observation_summary": {
+        "step": 9,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.0,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 36.58,
+        "completed_jobs": 5,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "ALLOCATE_JOB",
+        "job_id": "job_4",
+        "node_id": "gpu_2",
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "ALLOCATE_JOB job_4->gpu_2"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.05,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.6214999999999999
+      },
+      "guardrail_flags": [
+        "Repetition"
+      ],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "allocate:job_4->gpu_2"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_010",
+      "step": 10,
+      "observation_summary": {
+        "step": 10,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.0,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 36.36,
+        "completed_jobs": 6,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.6289999999999999
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_011",
+      "step": 11,
+      "observation_summary": {
+        "step": 11,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.0,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 36.12,
+        "completed_jobs": 7,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.0,
+        "total": 0.6289999999999999
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_012",
+      "step": 12,
+      "observation_summary": {
+        "step": 12,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.0,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 35.95,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.6189999999999999
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_013",
+      "step": 13,
+      "observation_summary": {
+        "step": 13,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.5,
+        "energy_remaining": 0.0,
+        "active_outages": 5,
+        "cascade_count": 3,
+        "average_temperature": 35.81,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.5,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.6189999999999999
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.03039135327819744,
+        "gpu_2": 0.033372300109847895,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_014",
+      "step": 14,
+      "observation_summary": {
+        "step": 14,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.4,
+        "energy_remaining": 0.0,
+        "active_outages": 6,
+        "cascade_count": 3,
+        "average_temperature": 36.19,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.4,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.5,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.45399999999999996
+      },
+      "guardrail_flags": [],
+      "failure_events": [
+        "gpu_2"
+      ],
+      "cascade_events": [
+        "shock:gpu_2->gpu_1"
+      ],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.04439135327819744,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op",
+        "node_failed:gpu_2"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_015",
+      "step": 15,
+      "observation_summary": {
+        "step": 15,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.4,
+        "energy_remaining": 0.0,
+        "active_outages": 6,
+        "cascade_count": 3,
+        "average_temperature": 35.89,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.4,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.604
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.04439135327819744,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_016",
+      "step": 16,
+      "observation_summary": {
+        "step": 16,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.4,
+        "energy_remaining": 0.0,
+        "active_outages": 6,
+        "cascade_count": 3,
+        "average_temperature": 35.77,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.4,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.604
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.04439135327819744,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_017",
+      "step": 17,
+      "observation_summary": {
+        "step": 17,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.4,
+        "energy_remaining": 0.0,
+        "active_outages": 6,
+        "cascade_count": 3,
+        "average_temperature": 35.81,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.4,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.604
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.04439135327819744,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_018",
+      "step": 18,
+      "observation_summary": {
+        "step": 18,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.3,
+        "energy_remaining": 0.0,
+        "active_outages": 7,
+        "cascade_count": 3,
+        "average_temperature": 35.84,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.3,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.5,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.43899999999999995
+      },
+      "guardrail_flags": [],
+      "failure_events": [
+        "gpu_1"
+      ],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.0,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op",
+        "node_failed:gpu_1"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_019",
+      "step": 19,
+      "observation_summary": {
+        "step": 19,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.3,
+        "energy_remaining": 0.0,
+        "active_outages": 7,
+        "cascade_count": 3,
+        "average_temperature": 36.01,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.3,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.589
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.0,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    },
+    {
+      "record_id": "ep_e1070bbd_step_020",
+      "step": 20,
+      "observation_summary": {
+        "step": 20,
+        "scenario": "triple_crisis",
+        "cluster_health": 0.3,
+        "energy_remaining": 0.0,
+        "active_outages": 7,
+        "cascade_count": 3,
+        "average_temperature": 36.16,
+        "completed_jobs": 8,
+        "failed_jobs": 0
+      },
+      "primary_action": {
+        "action_type": "NO_OP",
+        "job_id": null,
+        "node_id": null,
+        "source_node_id": null,
+        "target_node_id": null,
+        "zone_id": null,
+        "intensity": null,
+        "invalid": false,
+        "reason": null,
+        "message": "NO_OP"
+      },
+      "chaos_action": null,
+      "reward_breakdown": {
+        "critical_job_completion": 1.0,
+        "normal_job_completion": 0.36,
+        "deadline_score": 1.0,
+        "cluster_health_score": 0.3,
+        "thermal_safety_score": 1.0,
+        "recovery_score": 0.0,
+        "energy_efficiency_score": 0.0,
+        "useful_inspection_or_maintenance": 0.0,
+        "outage_penalty": 0.0,
+        "cascade_penalty": 0.0,
+        "missed_critical_deadline_penalty": 0.0,
+        "guardrail_violation_penalty": 0.0,
+        "invalid_action_penalty": 0.0,
+        "no_progress_penalty": 0.1,
+        "total": 0.589
+      },
+      "guardrail_flags": [],
+      "failure_events": [],
+      "cascade_events": [],
+      "failure_risk": {
+        "gpu_0": 0.0,
+        "gpu_1": 0.0,
+        "gpu_2": 0.0,
+        "gpu_3": 0.0,
+        "gpu_4": 0.0,
+        "gpu_5": 0.03365617402273473,
+        "gpu_6": 0.0,
+        "gpu_7": 0.02058747773351764,
+        "gpu_8": 0.02003443385638231,
+        "gpu_9": 0.0
+      },
+      "event_log": [
+        "no_op"
+      ]
+    }
+  ],
+  "summary": {
+    "failure_steps": [
+      1,
+      2,
+      5,
+      6,
+      14,
+      18
+    ],
+    "cascade_steps": [
+      1,
+      2,
+      5,
+      6,
+      14
+    ],
+    "guardrail_steps": [
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "energy_exhaustion_step": null,
+    "deadline_miss_steps": []
+  }
+}

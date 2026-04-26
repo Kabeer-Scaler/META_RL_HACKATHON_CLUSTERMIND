@@ -1,0 +1,63 @@
+name: ClusterMind Chaos Arena
+version: "1.0.0"
+description: >
+  A guarded adversarial OpenEnv benchmark for long-horizon AI infrastructure
+  control. Agents must manage job scheduling, GPU allocation, cooling, energy,
+  hidden degradation, maintenance, migration, and cascading failures under
+  adversarial chaos.
+
+tags:
+  - openenv
+  - reinforcement-learning
+  - llm-agent
+  - ai-infrastructure
+  - long-horizon-planning
+  - world-modeling
+  - guardrails
+  - chaos-engineering
+  - digital-twin
+  - pomdp
+
+environment:
+  entrypoint: clustermind.env:ClusterMindChaosEnv
+  action_type: clustermind.models:ClusterMindAction
+  observation_type: clustermind.models:ClusterMindObservation
+  state_type: clustermind.models:ClusterMindState
+
+tasks:
+  - demand_spike
+  - cooling_failure
+  - hidden_degradation
+  - cascading_failure
+  - energy_squeeze
+  - vip_job_arrival
+  - triple_crisis
+  - chaos_arena
+
+curriculum_levels:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+
+metrics:
+  - average_reward
+  - critical_job_completion_rate
+  - total_job_completion_rate
+  - missed_deadlines
+  - outage_count
+  - cascade_count
+  - average_cluster_health
+  - average_temperature
+  - energy_efficiency
+  - invalid_action_rate
+  - guardrail_violation_rate
+  - chaos_survival_score
+  - guardrail_integrity_score
+
+submission:
+  hf_space: "https://huggingface.co/spaces/Kabs-123/clustermind-chaos-arena"
+  notebook: "notebooks/ClusterMind_TRL_Colab.ipynb"
+  training_script: "scripts/train_trl.py"
+  evaluation_script: "scripts/evaluate.py"

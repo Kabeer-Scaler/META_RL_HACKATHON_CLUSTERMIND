@@ -1,0 +1,4 @@
+Step  1: agent=ALLOCATE_JOB  chaos=—  events=allocate:job_1->gpu_2; node_failed:gpu_0; node_failed:gpu_9 — failures: gpu_0, gpu_9 | cascade: shock:gpu_0->gpu_4,gpu_1, shock:gpu_9->gpu_8,gpu_5
+Step  2: agent=ALLOCATE_JOB  chaos=—  events=allocate:job_2->gpu_7; node_failed:gpu_3 — failures: gpu_3 | cascade: linked:gpu_3@step2, shock:gpu_3->gpu_2,gpu_4
+Step  3: agent=ALLOCATE_JOB  chaos=—  events=allocate:job_4->gpu_6
+Step  4: agent=ALLOCATE_JOB  chaos=—  events=allocate:job_0->gpu_5; job_arrivals:5
