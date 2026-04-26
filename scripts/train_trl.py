@@ -912,24 +912,6 @@ def run_llm_pipeline(
     tok.save_pretrained(out_adapter_dir)
     print(f"[OK] saved LoRA adapter + tokenizer to {out_adapter_dir}")
 
-    # ---- Push to Hugging Face Hub ----
-    _hf_token = os.environ.get("HF_TOKEN", "")
-    _hub_id = hub_model_id or os.environ.get("HF_HUB_MODEL_ID", "")
-    if _hub_id and _hf_token:
-        try:
-            from huggingface_hub import login as _hf_login
-            _hf_login(token=_hf_token, add_to_git_credential=False)
-            print(f"[HF Hub] pushing adapter to  https://huggingface.co/{_hub_id}")
-            model.push_to_hub(_hub_id, token=_hf_token)
-            tok.push_to_hub(_hub_id, token=_hf_token)
-            print(f"[HF Hub] done — adapter live at  https://huggingface.co/{_hub_id}")
-        except Exception as _hub_err:
-            print(f"[HF Hub] push failed (non-fatal): {_hub_err}")
-    elif _hub_id and not _hf_token:
-        print("[HF Hub] skipped — HF_TOKEN not set. Add it to Kaggle/Colab secrets.")
-    else:
-        print("[HF Hub] skipped — no --hub-model-id provided.")
-
     summary = {
         "schema": "clustermind.training.llm_lora.v1",
         "base_model": base_model,
@@ -953,6 +935,101 @@ def run_llm_pipeline(
     with open(out_results_json, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     print(f"[OK] wrote {out_results_json}")
+
+    # ---- Push to Hugging Face Hub (training layer) ----
+    _hf_token = os.environ.get("HF_TOKEN", "")
+    _hub_id = hub_model_id or os.environ.get("HF_HUB_MODEL_ID", "")
+    if _hub_id and _hf_token:
+        try:
+            from huggingface_hub import login as _hf_login, create_repo, upload_file
+            _hf_login(token=_hf_token, add_to_git_credential=False)
+            create_repo(_hub_id, token=_hf_token, exist_ok=True, repo_type="model")
+            print(f"[HF Hub] pushing adapter -> https://huggingface.co/{_hub_id}")
+            model.push_to_hub(_hub_id, token=_hf_token)
+            tok.push_to_hub(_hub_id, token=_hf_token)
+
+            # Model card with YAML frontmatter so HF Hub renders it correctly.
+            mean_r = summary["eval_mean_reward"]
+            mean_r_str = f"{mean_r:.2f}" if isinstance(mean_r, (int, float)) else "n/a"
+            card = f"""---
+base_model: {base_model}
+library_name: peft
+tags:
+- reinforcement-learning
+- lora
+- peft
+- {chosen_algo}
+- clustermind
+license: apache-2.0
+---
+
+# ClusterMind Chaos Arena — LoRA adapter ({chosen_algo.upper()})
+
+Trained on the **ClusterMind Chaos Arena** environment via SFT warm-start +
+online RL ({chosen_algo}). Base weights are frozen; only the LoRA adapter is
+updated (r=8, target_modules=["q_proj","v_proj"]).
+
+## Training summary
+| field | value |
+|---|---|
+| base model | `{base_model}` |
+| RL algo | `{chosen_algo}` ({algo_note}) |
+| trainable params | {trainable:,} / {total:,} ({trainable/total*100:.2f}%) |
+| SFT episodes | {sft_episodes} |
+| RL episodes | {rl_episodes} |
+| eval episodes | {eval_episodes} |
+| eval mean reward | {mean_r_str} |
+| frozen base | True |
+| lora only | True |
+| quick mode | {quick} |
+
+## How to load
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+
+base = "{base_model}"
+adapter = "{_hub_id}"
+
+tok = AutoTokenizer.from_pretrained(base)
+model = AutoModelForCausalLM.from_pretrained(base, device_map="auto")
+model = PeftModel.from_pretrained(model, adapter)
+```
+
+## Files in this repo
+- `adapter_model.safetensors` — LoRA weights
+- `adapter_config.json` — LoRA config (r, alpha, target modules)
+- `tokenizer.json` etc. — tokenizer of the base model
+- `training_logs.jsonl` — per-step reward + loss + metrics
+- `trained_results.json` — full training summary
+
+## Evaluation
+The trained agent is benchmarked against five heuristic baselines on
+8 chaos scenarios at curriculum levels 3–5. See `trained_results.json`
+for the full eval breakdown.
+"""
+            with open(os.path.join(out_adapter_dir, "README.md"), "w", encoding="utf-8") as _rf:
+                _rf.write(card)
+            upload_file(path_or_fileobj=os.path.join(out_adapter_dir, "README.md"),
+                        path_in_repo="README.md", repo_id=_hub_id, token=_hf_token)
+
+            # Push training logs + summary so judges can replay metrics
+            for _local, _remote in [
+                (log_path, "training_logs.jsonl"),
+                (out_results_json, "trained_results.json"),
+            ]:
+                if os.path.isfile(_local):
+                    upload_file(path_or_fileobj=_local, path_in_repo=_remote,
+                                repo_id=_hub_id, token=_hf_token)
+
+            print(f"[HF Hub] done — model card + logs live at "
+                  f"https://huggingface.co/{_hub_id}")
+        except Exception as _hub_err:
+            print(f"[HF Hub] push failed (non-fatal): {_hub_err}")
+    elif _hub_id and not _hf_token:
+        print("[HF Hub] skipped — HF_TOKEN not set. Add it to Kaggle/Colab secrets.")
+    else:
+        print("[HF Hub] skipped — no --hub-model-id provided.")
 
 
 # ---------------------------------------------------------------------------
