@@ -534,13 +534,18 @@ def run_policy_net_pipeline(
 # ---------------------------------------------------------------------------
 
 def _try_llm_stack():
-    try:
-        import transformers  # noqa: F401
-        import peft  # noqa: F401
-        import torch  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    """Returns True iff the LLM/LoRA path's hard deps are importable.
+    Prints a diagnostic line on failure so HF Jobs / CI logs surface the reason
+    (we previously fell back to policy-mode silently when a transitive import
+    raised, which made debugging impossible)."""
+    for _name in ("torch", "transformers", "peft"):
+        try:
+            __import__(_name)
+        except Exception as _e:
+            print(f"[LLM-stack-check] FAILED import {_name}: "
+                  f"{type(_e).__name__}: {_e}")
+            return False
+    return True
 
 
 def _resolve_rl_algo(requested: str) -> Tuple[str, str]:
