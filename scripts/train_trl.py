@@ -723,16 +723,16 @@ def run_llm_pipeline(
     rl_rewards: List[float] = []
     rl_losses: List[float] = []
     fallback = ThermalAwareHeuristicAgent()
-    kl_coef = 0.02 if chosen_algo == "ppo" else 0.0  # KL penalty only for PPO mode
 
-    def _run_one_episode(seed: int, scenario: str, level: int):
+    # --- collect episode data with ZERO gradient storage ---
+    def _collect_episode(seed: int, scenario: str, level: int):
+        """Run one episode under no_grad; store only token IDs and rewards."""
         env = ClusterMindChaosEnv()
         obs = env.reset(seed=seed, options={
             "scenario": scenario, "curriculum_level": level, "max_steps": 12 if quick else 20,
         })
-        log_probs: List["torch.Tensor"] = []
-        ref_log_probs: List["torch.Tensor"] = []
-        rewards: List[float] = []
+        steps: List[Tuple["torch.Tensor", "torch.Tensor"]] = []  # (ids_tensor, generated)
+        total_r = 0.0
         info: Dict[str, Any] = {}
         while not obs.done:
             prompt = build_prompt(obs)
@@ -747,47 +747,39 @@ def run_llm_pipeline(
                     **ids, max_new_tokens=64, do_sample=True, temperature=0.7,
                     pad_token_id=tok.eos_token_id,
                 )
-                # Cache the KV state for the INPUT tokens so the scoring
-                # forward pass only has to process the ~64 *generated* tokens
-                # instead of the full 576-token sequence.  This cuts attention
-                # memory by ~64x and is the core fix for the T4 OOM.
-                input_kv = model(**ids, use_cache=True).past_key_values
             input_len = ids["input_ids"].shape[-1]
-            generated = gen_ids[0][input_len:]
-            if generated.shape[0] > 0:
-                with torch.enable_grad():
-                    # Forward through ONLY the generated tokens using cached input context.
-                    outputs = model(generated.unsqueeze(0),
-                                    past_key_values=input_kv,
-                                    use_cache=False)
-                    gen_logits = outputs.logits[0].float()  # [gen_len, vocab]
-                    lp = torch.log_softmax(gen_logits, dim=-1)[
-                        torch.arange(generated.shape[0], device=model.device), generated
-                    ].sum()
-                del outputs, gen_logits
-                log_probs.append(lp)
-                if kl_coef > 0:
-                    with model.disable_adapter():
-                        with torch.no_grad():
-                            ref_kv = model(**ids, use_cache=True).past_key_values
-                            ref_out = model(generated.unsqueeze(0),
-                                            past_key_values=ref_kv,
-                                            use_cache=False)
-                            ref_logits = ref_out.logits[0].float()
-                            ref_lp = torch.log_softmax(ref_logits, dim=-1)[
-                                torch.arange(generated.shape[0], device=model.device), generated
-                            ].sum()
-                    ref_log_probs.append(ref_lp.detach())
-            del input_kv
+            generated = gen_ids[0][input_len:].detach()
             decoded = tok.decode(generated, skip_special_tokens=True)
             action = parse_to_action(_try_parse(decoded))
             if action is None:
                 action = fallback.act(obs)
             new_obs, reward, done, info = env.step(action)
-            rewards.append(reward)
+            total_r += reward
+            if generated.shape[0] > 0:
+                steps.append((ids["input_ids"].detach(), generated))
+            del gen_ids, ids
             obs = new_obs
         env.close()
-        return log_probs, ref_log_probs, rewards, info
+        return steps, total_r, info
+
+    # --- replay one step at a time; backprop immediately; peak mem = 1 forward pass ---
+    def _accum_grads(steps, advantage: float) -> int:
+        """Accumulate gradients across episode steps (one step at a time).
+        Returns number of steps that produced a gradient."""
+        n = 0
+        for input_ids, generated in steps:
+            with torch.no_grad():
+                kv = model(input_ids, use_cache=True).past_key_values
+            with torch.enable_grad():
+                out = model(generated.unsqueeze(0), past_key_values=kv, use_cache=False)
+                lp = torch.log_softmax(out.logits[0].float(), dim=-1)[
+                    torch.arange(generated.shape[0], device=generated.device), generated
+                ].sum()
+                step_loss = -lp * float(advantage) / max(1, len(steps))
+            step_loss.backward()
+            del out, lp, step_loss, kv
+            n += 1
+        return n
 
     for ep in range(rl_episodes):
         scenario = scenarios[ep % len(scenarios)]
@@ -795,57 +787,39 @@ def run_llm_pipeline(
         seed = seed_base + 9000 + ep
 
         if chosen_algo == "grpo":
-            # Sample K trajectories from the same starting seed and use
-            # group-relative advantage (Σi (Ri - mean(R)) * Σ logπi).
-            group: List[Tuple[List["torch.Tensor"], List[float], Dict[str, Any]]] = []
+            group_data = []
             for k in range(grpo_group_size):
-                lp, _, rs, info = _run_one_episode(seed=seed + 1000 * k, scenario=scenario, level=level)
-                group.append((lp, rs, info))
-            returns = [sum(rs) for _, rs, _ in group]
+                st, R, inf = _collect_episode(seed=seed + 1000 * k, scenario=scenario, level=level)
+                group_data.append((st, R, inf))
+            returns = [R for _, R, _ in group_data]
             mean_r = sum(returns) / max(1, len(returns))
             std_r = max(1e-6, (sum((r - mean_r) ** 2 for r in returns) / max(1, len(returns))) ** 0.5)
-            losses_for_step = []
-            for (lp, rs, _), R in zip(group, returns):
-                adv = (R - mean_r) / std_r
-                if lp:
-                    losses_for_step.append(-torch.stack(lp).sum() * float(adv))
-            if losses_for_step:
-                loss = torch.stack(losses_for_step).mean()
-                if loss.requires_grad:
-                    optim.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
-                    optim.step()
-                    rl_losses.append(float(loss.detach().item()))
+            info = group_data[-1][2]
             total_return = mean_r
-            info = group[-1][2]
-            del group, losses_for_step
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            optim.zero_grad()
+            n_grads = 0
+            for steps, R, _ in group_data:
+                adv = (R - mean_r) / std_r
+                n_grads += _accum_grads(steps, adv)
+            if n_grads > 0:
+                torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+                optim.step()
+                rl_losses.append(float(sum(returns) / len(returns)))
+            del group_data
         else:
-            # PPO (REINFORCE + KL) and REINFORCE share an episode loop.
-            log_probs, ref_log_probs, rewards, info = _run_one_episode(
-                seed=seed, scenario=scenario, level=level,
-            )
-            total_return = sum(rewards)
+            steps, total_return, info = _collect_episode(seed=seed, scenario=scenario, level=level)
             baseline = (1 - bopt_alpha) * baseline + bopt_alpha * total_return
             advantage = total_return - baseline
-            if log_probs:
-                loss = -torch.stack(log_probs).sum() * float(advantage)
-                if chosen_algo == "ppo" and ref_log_probs:
-                    # KL approx: KL(π || π_ref) ≈ Σ (logπ - logπ_ref); we
-                    # subtract the policy log-probs (drift signal) and add
-                    # an L2-style anchor toward zero on the LoRA delta.
-                    drift = torch.stack(log_probs).sum() - torch.stack(ref_log_probs).sum()
-                    loss = loss + kl_coef * drift.detach().abs()
-                if loss.requires_grad:
-                    optim.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
-                    optim.step()
-                    rl_losses.append(float(loss.detach().item()))
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            optim.zero_grad()
+            n_grads = _accum_grads(steps, advantage)
+            if n_grads > 0:
+                torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+                optim.step()
+                rl_losses.append(float(total_return))
+            del steps
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         rl_rewards.append(total_return)
         snap = info.get("metrics_snapshot", {}) if isinstance(info, dict) else {}
