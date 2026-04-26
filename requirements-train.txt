@@ -1,30 +1,27 @@
 # Training dependencies for HF Jobs runs.
 # Base image must provide torch + CUDA (e.g. pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime).
-# This file only adds the HF + RL stack and the repo deps.
-
-# Versions aligned to what Unsloth's transitive deps actually allow:
-#   - unsloth_zoo 2026.4.9 requires:  trl>=0.18.2, !=0.19.0, <=0.24.0
-#   - we keep transformers/peft loose so Unsloth's pyproject can pick a working pair
-#   - huggingface_hub <2.0 keeps push_to_hub API stable
-# Compatibility matrix (verified by pip resolver + runtime imports):
-#   - transformers <5.0  : 4.x still exports BloomPreTrainedModel, which
-#     peft 0.18+ lazy-imports. transformers 5.x removed it -> import error.
-#   - peft >=0.18        : unsloth_zoo requires this (>=0.18.0, !=0.11.0).
-#   - trl in Unsloth's accepted range (>=0.18.2, !=0.19.0, <=0.24.0).
+#
+# Stack (decided after iterating on HF Jobs):
+#   - HF transformers + peft + bitsandbytes  (model load, 4-bit QLoRA, LoRA wrap)
+#   - HF TRL SFTTrainer                       (SFT phase)
+#   - In-tree GRPO/PPO/REINFORCE              (RL phase; TRL's GRPOTrainer OOMs on T4)
+#
+# Unsloth was tried but its dep tree forced peft>=0.18, which has a runtime
+# import bug against transformers >=4.50 (`BloomPreTrainedModel` no longer
+# at top level). We don't need Unsloth's 2x speed/lower-VRAM benefit on a 0.5B
+# model running on 24 GB+ GPUs, so it's not worth blocking the whole pipeline.
+#
+# These pins are exactly the combination the Kaggle/Colab notebook ran
+# successfully on T4 (verified end-to-end).
 transformers>=4.46,<5.0
-peft>=0.18
-trl>=0.18.2,!=0.19.0,<=0.24.0
+peft>=0.13,<0.18
+trl>=0.13,<0.16
 accelerate>=0.34
 bitsandbytes>=0.43,<0.50
 huggingface_hub>=0.25,<2.0
 sentencepiece
 einops
-datasets
-
-# Unsloth — used ONLY for fast model load + LoRA wrap (2× speed, fused kernels).
-# Pulled from git so it always pairs with the latest torch/CUDA matrix; the
-# [colab-new] extra is the recommended install on fresh containers.
-unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
+datasets<4.0
 
 # Repo deps
 pydantic>=2.5
