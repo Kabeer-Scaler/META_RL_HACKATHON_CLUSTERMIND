@@ -29,8 +29,11 @@ Thumbs.db
 .claude/
 .claude_*/
 
-# Heavy LoRA adapters from Colab runs (commit explicitly when needed)
-results/adapters/clustermind_lora/
+# Generated results — regenerated on every notebook run; never commit automatically
+results/*.png
+results/*.json
+results/*.jsonl
+results/adapters/
 
 # Local secrets / env
 .env
