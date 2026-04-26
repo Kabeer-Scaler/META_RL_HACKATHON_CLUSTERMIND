@@ -766,11 +766,12 @@ def run_llm_pipeline(
                     losses_for_step.append(-torch.stack(lp).sum() * float(adv))
             if losses_for_step:
                 loss = torch.stack(losses_for_step).mean()
-                optim.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
-                optim.step()
-                rl_losses.append(float(loss.detach().item()))
+                if loss.requires_grad:
+                    optim.zero_grad()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+                    optim.step()
+                    rl_losses.append(float(loss.detach().item()))
             total_return = mean_r
             info = group[-1][2]
         else:
@@ -789,11 +790,12 @@ def run_llm_pipeline(
                     # an L2-style anchor toward zero on the LoRA delta.
                     drift = torch.stack(log_probs).sum() - torch.stack(ref_log_probs).sum()
                     loss = loss + kl_coef * drift.detach().abs()
-                optim.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
-                optim.step()
-                rl_losses.append(float(loss.detach().item()))
+                if loss.requires_grad:
+                    optim.zero_grad()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+                    optim.step()
+                    rl_losses.append(float(loss.detach().item()))
 
         rl_rewards.append(total_return)
         snap = info.get("metrics_snapshot", {}) if isinstance(info, dict) else {}
