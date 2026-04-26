@@ -1,0 +1,21 @@
+# Training dependencies for HF Jobs runs.
+# Base image is expected to provide torch + CUDA (e.g. pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime).
+# This file only adds the HF + RL stack and the small repo deps.
+
+transformers>=4.45
+peft>=0.13
+trl>=0.11
+accelerate>=0.34
+bitsandbytes>=0.43
+sentencepiece
+einops
+datasets
+huggingface_hub>=0.25
+
+# Repo deps
+pydantic>=2.5
+numpy>=1.24
+PyYAML>=6.0
+networkx>=3.1
+matplotlib>=3.7
+openenv-core
