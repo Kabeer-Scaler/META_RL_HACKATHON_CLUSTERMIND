@@ -601,18 +601,52 @@ def run_llm_pipeline(
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import LoraConfig, get_peft_model
 
+    def _gmem():
+        if torch.cuda.is_available():
+            a = torch.cuda.memory_allocated() / 1e9
+            r = torch.cuda.memory_reserved() / 1e9
+            print(f"[GPU] alloc={a:.2f} GB  reserved={r:.2f} GB")
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    _gmem()
     print(f"[LLM] loading base model: {base_model}")
     tok = AutoTokenizer.from_pretrained(base_model)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto" if torch.cuda.is_available() else None,
-    )
-    # Freeze base.
-    for p in model.parameters():
-        p.requires_grad = False
+
+    # Load in 4-bit (QLoRA) on GPU — cuts base-model VRAM from ~1 GB to ~250 MB
+    # and correctly wires gradient checkpointing through peft's kbit helper.
+    # Falls back to plain float16 on CPU or if bitsandbytes is missing.
+    _loaded_4bit = False
+    if torch.cuda.is_available():
+        try:
+            from transformers import BitsAndBytesConfig as _BnBC
+            from peft import prepare_model_for_kbit_training as _prep_kbit
+            _bnb = _BnBC(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model, quantization_config=_bnb, device_map="auto",
+            )
+            model = _prep_kbit(model, use_gradient_checkpointing=True)
+            _loaded_4bit = True
+            print("[LLM] loaded in 4-bit QLoRA mode")
+        except Exception as _e:
+            print(f"[LLM] 4-bit load failed ({_e}), falling back to float16")
+    if not _loaded_4bit:
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model,
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto" if torch.cuda.is_available() else None,
+        )
+        for p in model.parameters():
+            p.requires_grad = False
+        model.enable_input_require_grads()
+        model.gradient_checkpointing_enable()
 
     lora_config = LoraConfig(
         r=8, lora_alpha=16, lora_dropout=0.05, bias="none",
@@ -620,10 +654,6 @@ def run_llm_pipeline(
         target_modules=["q_proj", "v_proj"],
     )
     model = get_peft_model(model, lora_config)
-    # Gradient checkpointing recomputes activations during backward instead of
-    # storing them — halves activation memory at ~25% extra compute cost.
-    model.enable_input_require_grads()
-    model.gradient_checkpointing_enable()
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
     print(f"[LLM] trainable params: {trainable:,} / {total:,} ({trainable/total*100:.2f}%)")
@@ -669,7 +699,7 @@ def run_llm_pipeline(
                 + target_str
             )
             ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(model.device)
-            out = model(**ids, labels=ids["input_ids"])
+            out = model(**ids, labels=ids["input_ids"], use_cache=False)
             optim.zero_grad()
             out.loss.backward()
             optim.step()
@@ -684,6 +714,7 @@ def run_llm_pipeline(
         torch.cuda.empty_cache()
 
     # ---- RL on adapter ----
+    _gmem()
     chosen_algo, algo_note = _resolve_rl_algo(rl_algo)
     print(f"[LLM-RL] algorithm={chosen_algo} -- {algo_note}")
     print(f"[LLM-RL] {rl_episodes} live episodes...")
@@ -711,39 +742,43 @@ def run_llm_pipeline(
                 tokenize=False, add_generation_prompt=True,
             )
             ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
-            # Sample action tokens without gradient tracking (generation loop is
-            # not differentiable through model.generate — scores are detached).
             with torch.no_grad():
                 gen_ids = model.generate(
                     **ids, max_new_tokens=64, do_sample=True, temperature=0.7,
                     pad_token_id=tok.eos_token_id,
                 )
+                # Cache the KV state for the INPUT tokens so the scoring
+                # forward pass only has to process the ~64 *generated* tokens
+                # instead of the full 576-token sequence.  This cuts attention
+                # memory by ~64x and is the core fix for the T4 OOM.
+                input_kv = model(**ids, use_cache=True).past_key_values
             input_len = ids["input_ids"].shape[-1]
             generated = gen_ids[0][input_len:]
-            # Differentiable log-prob: a single forward pass over the full
-            # sequence gives logits with a grad_fn connected to LoRA params.
             if generated.shape[0] > 0:
                 with torch.enable_grad():
-                    outputs = model(gen_ids)
-                    # logits[i] is the distribution over token[i+1]; upcast to
-                    # float32 for numerical stability with fp16 base weights.
-                    gen_logits = outputs.logits[0, input_len - 1:
-                                                input_len - 1 + generated.shape[0]].float()
+                    # Forward through ONLY the generated tokens using cached input context.
+                    outputs = model(generated.unsqueeze(0),
+                                    past_key_values=input_kv,
+                                    use_cache=False)
+                    gen_logits = outputs.logits[0].float()  # [gen_len, vocab]
                     lp = torch.log_softmax(gen_logits, dim=-1)[
                         torch.arange(generated.shape[0], device=model.device), generated
                     ].sum()
+                del outputs, gen_logits
                 log_probs.append(lp)
                 if kl_coef > 0:
-                    # PPO: reference log-prob from frozen base (adapters off).
                     with model.disable_adapter():
                         with torch.no_grad():
-                            ref_out = model(gen_ids)
-                            ref_logits = ref_out.logits[0, input_len - 1:
-                                                        input_len - 1 + generated.shape[0]].float()
+                            ref_kv = model(**ids, use_cache=True).past_key_values
+                            ref_out = model(generated.unsqueeze(0),
+                                            past_key_values=ref_kv,
+                                            use_cache=False)
+                            ref_logits = ref_out.logits[0].float()
                             ref_lp = torch.log_softmax(ref_logits, dim=-1)[
                                 torch.arange(generated.shape[0], device=model.device), generated
                             ].sum()
                     ref_log_probs.append(ref_lp.detach())
+            del input_kv
             decoded = tok.decode(generated, skip_special_tokens=True)
             action = parse_to_action(_try_parse(decoded))
             if action is None:
