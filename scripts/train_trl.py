@@ -701,30 +701,39 @@ def run_llm_pipeline(
                 tokenize=False, add_generation_prompt=True,
             )
             ids = tok(text, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
-            with torch.enable_grad():
-                gen = model.generate(
+            # Sample action tokens without gradient tracking (generation loop is
+            # not differentiable through model.generate — scores are detached).
+            with torch.no_grad():
+                gen_ids = model.generate(
                     **ids, max_new_tokens=64, do_sample=True, temperature=0.7,
                     pad_token_id=tok.eos_token_id,
-                    return_dict_in_generate=True, output_scores=True,
                 )
-                generated = gen.sequences[0][ids["input_ids"].shape[-1]:]
-                lp = torch.tensor(0.0, device=model.device)
-                for t, score in enumerate(gen.scores):
-                    if t >= generated.shape[0]:
-                        break
-                    log_softmax = torch.log_softmax(score[0], dim=-1)
-                    lp = lp + log_softmax[generated[t]]
+            input_len = ids["input_ids"].shape[-1]
+            generated = gen_ids[0][input_len:]
+            # Differentiable log-prob: a single forward pass over the full
+            # sequence gives logits with a grad_fn connected to LoRA params.
+            if generated.shape[0] > 0:
+                with torch.enable_grad():
+                    outputs = model(gen_ids)
+                    # logits[i] is the distribution over token[i+1]; upcast to
+                    # float32 for numerical stability with fp16 base weights.
+                    gen_logits = outputs.logits[0, input_len - 1:
+                                                input_len - 1 + generated.shape[0]].float()
+                    lp = torch.log_softmax(gen_logits, dim=-1)[
+                        torch.arange(generated.shape[0], device=model.device), generated
+                    ].sum()
                 log_probs.append(lp)
                 if kl_coef > 0:
-                    # PPO mode: compute reference log-prob with adapters disabled
-                    # so the KL penalty is against the *frozen base*, not the
-                    # currently-updating LoRA policy.
+                    # PPO: reference log-prob from frozen base (adapters off).
                     with model.disable_adapter():
                         with torch.no_grad():
-                            ref_gen = model(ids["input_ids"])
-                        # Approximate ref log-prob over generated tokens.
-                        ref_lp = torch.tensor(0.0, device=model.device)
-                        ref_log_probs.append(ref_lp)
+                            ref_out = model(gen_ids)
+                            ref_logits = ref_out.logits[0, input_len - 1:
+                                                        input_len - 1 + generated.shape[0]].float()
+                            ref_lp = torch.log_softmax(ref_logits, dim=-1)[
+                                torch.arange(generated.shape[0], device=model.device), generated
+                            ].sum()
+                    ref_log_probs.append(ref_lp.detach())
             decoded = tok.decode(generated, skip_special_tokens=True)
             action = parse_to_action(_try_parse(decoded))
             if action is None:
