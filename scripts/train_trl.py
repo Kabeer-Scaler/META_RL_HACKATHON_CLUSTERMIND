@@ -42,6 +42,7 @@ Two convenience flags drive episode budgets:
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import math
 import os
@@ -619,6 +620,10 @@ def run_llm_pipeline(
         target_modules=["q_proj", "v_proj"],
     )
     model = get_peft_model(model, lora_config)
+    # Gradient checkpointing recomputes activations during backward instead of
+    # storing them — halves activation memory at ~25% extra compute cost.
+    model.enable_input_require_grads()
+    model.gradient_checkpointing_enable()
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
     print(f"[LLM] trainable params: {trainable:,} / {total:,} ({trainable/total*100:.2f}%)")
@@ -663,7 +668,7 @@ def run_llm_pipeline(
                 )
                 + target_str
             )
-            ids = tok(full, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
+            ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(model.device)
             out = model(**ids, labels=ids["input_ids"])
             optim.zero_grad()
             out.loss.backward()
@@ -672,6 +677,11 @@ def run_llm_pipeline(
         avg = running_loss / max(1, sft_steps)
         print(f"[LLM-SFT] epoch {epoch+1}: loss={avg:.4f}")
         _log({"phase": "sft", "epoch": epoch + 1, "loss": avg, "reward": None})
+
+    # Free SFT activation memory before switching to RL rollouts.
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     # ---- RL on adapter ----
     chosen_algo, algo_note = _resolve_rl_algo(rl_algo)
@@ -700,7 +710,7 @@ def run_llm_pipeline(
                  {"role": "user", "content": prompt["user"]}],
                 tokenize=False, add_generation_prompt=True,
             )
-            ids = tok(text, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
+            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
             # Sample action tokens without gradient tracking (generation loop is
             # not differentiable through model.generate — scores are detached).
             with torch.no_grad():
@@ -774,6 +784,9 @@ def run_llm_pipeline(
                     rl_losses.append(float(loss.detach().item()))
             total_return = mean_r
             info = group[-1][2]
+            del group, losses_for_step
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         else:
             # PPO (REINFORCE + KL) and REINFORCE share an episode loop.
             log_probs, ref_log_probs, rewards, info = _run_one_episode(
@@ -796,6 +809,8 @@ def run_llm_pipeline(
                     torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
                     optim.step()
                     rl_losses.append(float(loss.detach().item()))
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         rl_rewards.append(total_return)
         snap = info.get("metrics_snapshot", {}) if isinstance(info, dict) else {}
@@ -840,7 +855,7 @@ def run_llm_pipeline(
                  {"role": "user", "content": prompt["user"]}],
                 tokenize=False, add_generation_prompt=True,
             )
-            ids = tok(text, return_tensors="pt", truncation=True, max_length=1024).to(model.device)
+            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
             with torch.no_grad():
                 gen = model.generate(
                     **ids, max_new_tokens=64, do_sample=False,
@@ -940,6 +955,7 @@ def main():
         if args.eval_episodes < 16:
             args.eval_episodes = 16
 
+    os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True")
     os.makedirs(args.results_dir, exist_ok=True)
     log_path = os.path.join(args.results_dir, "training_logs.jsonl")
     summary_path = os.path.join(args.results_dir, "trained_results.json")
