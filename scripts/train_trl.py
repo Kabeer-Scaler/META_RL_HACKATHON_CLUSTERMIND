@@ -601,13 +601,22 @@ def run_llm_pipeline(
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import LoraConfig, get_peft_model
 
+    _use_gpu = torch.cuda.is_available()
+    _device = torch.device("cuda:0") if _use_gpu else torch.device("cpu")
+    # device_map forces every layer to GPU 0; avoids "auto" splitting layers to CPU
+    _dmap = {"": 0} if _use_gpu else None
+
     def _gmem():
-        if torch.cuda.is_available():
+        if _use_gpu:
+            # torch.cuda.memory_allocated doesn't track BitsAndBytes' direct CUDA
+            # allocs, so also show nvidia-smi used/total for a truthful reading.
             a = torch.cuda.memory_allocated() / 1e9
             r = torch.cuda.memory_reserved() / 1e9
-            print(f"[GPU] alloc={a:.2f} GB  reserved={r:.2f} GB")
+            total_mb = torch.cuda.get_device_properties(0).total_memory / 1e9
+            print(f"[GPU] device={torch.cuda.get_device_name(0)}  "
+                  f"total={total_mb:.1f} GB  alloc={a:.2f} GB  reserved={r:.2f} GB")
 
-    if torch.cuda.is_available():
+    if _use_gpu:
         torch.cuda.empty_cache()
     _gmem()
     print(f"[LLM] loading base model: {base_model}")
@@ -615,11 +624,10 @@ def run_llm_pipeline(
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
-    # Load in 4-bit (QLoRA) on GPU — cuts base-model VRAM from ~1 GB to ~250 MB
-    # and correctly wires gradient checkpointing through peft's kbit helper.
-    # Falls back to plain float16 on CPU or if bitsandbytes is missing.
+    # Load in 4-bit QLoRA pinned to cuda:0 — ~250 MB VRAM vs ~1 GB fp16.
+    # device_map={"": 0} prevents any layer from being offloaded to CPU.
     _loaded_4bit = False
-    if torch.cuda.is_available():
+    if _use_gpu:
         try:
             from transformers import BitsAndBytesConfig as _BnBC
             from peft import prepare_model_for_kbit_training as _prep_kbit
@@ -630,23 +638,24 @@ def run_llm_pipeline(
                 bnb_4bit_compute_dtype=torch.float16,
             )
             model = AutoModelForCausalLM.from_pretrained(
-                base_model, quantization_config=_bnb, device_map="auto",
+                base_model, quantization_config=_bnb, device_map=_dmap,
             )
             model = _prep_kbit(model, use_gradient_checkpointing=True)
             _loaded_4bit = True
-            print("[LLM] loaded in 4-bit QLoRA mode")
+            print(f"[LLM] loaded in 4-bit QLoRA mode on {_device}")
         except Exception as _e:
             print(f"[LLM] 4-bit load failed ({_e}), falling back to float16")
     if not _loaded_4bit:
         model = AutoModelForCausalLM.from_pretrained(
             base_model,
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto" if torch.cuda.is_available() else None,
+            torch_dtype=torch.float16 if _use_gpu else torch.float32,
+            device_map=_dmap,
         )
         for p in model.parameters():
             p.requires_grad = False
         model.enable_input_require_grads()
         model.gradient_checkpointing_enable()
+    print(f"[LLM] model device: {next(model.parameters()).device}")
 
     lora_config = LoraConfig(
         r=8, lora_alpha=16, lora_dropout=0.05, bias="none",
@@ -698,7 +707,7 @@ def run_llm_pipeline(
                 )
                 + target_str
             )
-            ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+            ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(_device)
             out = model(**ids, labels=ids["input_ids"], use_cache=False)
             optim.zero_grad()
             out.loss.backward()
@@ -741,7 +750,7 @@ def run_llm_pipeline(
                  {"role": "user", "content": prompt["user"]}],
                 tokenize=False, add_generation_prompt=True,
             )
-            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(_device)
             with torch.no_grad():
                 gen_ids = model.generate(
                     **ids, max_new_tokens=64, do_sample=True, temperature=0.7,
@@ -864,7 +873,7 @@ def run_llm_pipeline(
                  {"role": "user", "content": prompt["user"]}],
                 tokenize=False, add_generation_prompt=True,
             )
-            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(model.device)
+            ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(_device)
             with torch.no_grad():
                 gen = model.generate(
                     **ids, max_new_tokens=64, do_sample=False,
