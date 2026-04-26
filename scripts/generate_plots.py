@@ -83,23 +83,44 @@ def _agent_summary(payload: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
 # ---------------------------------------------------------------------------
 
 def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str,
-                      algo_label: str = "") -> bool:
+                      algo_label: str = "",
+                      trained: Optional[Dict[str, Any]] = None) -> bool:
     rl_entries = [e for e in training_logs if e.get("phase") == "rl" and isinstance(e.get("reward"), (int, float))]
     if not rl_entries:
         rl_entries = [e for e in training_logs if isinstance(e.get("reward"), (int, float))]
-    if not rl_entries:
-        return _placeholder_plot(
-            out_path,
-            title="Reward Curve",
-            xlabel="Training episode",
-            ylabel="Episode reward",
-            note="No training_logs.jsonl found — run scripts/train_trl.py to populate.",
-        )
-    rewards = [float(e["reward"]) for e in rl_entries]
-    episodes = [e.get("episode", e.get("step", i)) for i, e in enumerate(rl_entries)]
+
+    # Fall back to trained_results.json rl_rewards when the jsonl has no RL rows.
+    # Both LLM and policy-net paths always write rl_rewards there.
+    if not rl_entries and trained:
+        raw_rewards = trained.get("rl_rewards") or []
+        if raw_rewards:
+            rewards = [float(r) for r in raw_rewards]
+            episodes = list(range(1, len(rewards) + 1))
+            source_note = "from trained_results.json"
+        else:
+            return _placeholder_plot(
+                out_path,
+                title="Reward Curve",
+                xlabel="Training episode",
+                ylabel="Episode reward",
+                note="No RL reward data found — run scripts/train_trl.py first.",
+            )
+    else:
+        if not rl_entries:
+            return _placeholder_plot(
+                out_path,
+                title="Reward Curve",
+                xlabel="Training episode",
+                ylabel="Episode reward",
+                note="No RL reward data found — run scripts/train_trl.py first.",
+            )
+        rewards = [float(e["reward"]) for e in rl_entries]
+        episodes = [e.get("episode", e.get("step", i + 1)) for i, e in enumerate(rl_entries)]
+        source_note = "from training_logs.jsonl"
+
     suffix = f"  [{algo_label}]" if algo_label else ""
     plt.figure(figsize=(7, 4))
-    plt.plot(episodes, rewards, label="episode reward", linewidth=1.4, color="#2980b9")
+    plt.plot(episodes, rewards, label=f"episode reward ({source_note})", linewidth=1.4, color="#2980b9")
     if len(rewards) >= 5:
         window = max(3, len(rewards) // 8)
         smoothed = [sum(rewards[max(0, i - window):i + 1]) / max(1, min(i + 1, window))
@@ -118,15 +139,45 @@ def plot_reward_curve(training_logs: List[Dict[str, Any]], out_path: str,
 
 
 def plot_loss_curve(training_logs: List[Dict[str, Any]], out_path: str,
-                    algo_label: str = "") -> bool:
+                    algo_label: str = "",
+                    trained: Optional[Dict[str, Any]] = None) -> bool:
     sft = [e for e in training_logs if e.get("phase") == "sft" and isinstance(e.get("loss"), (int, float))]
     rl = [e for e in training_logs if e.get("phase") == "rl" and isinstance(e.get("loss"), (int, float))]
     if not sft and not rl:
         rl = [e for e in training_logs if isinstance(e.get("loss"), (int, float))]
+
+    # Fall back to trained_results.json rl_losses when the jsonl has no loss rows.
+    if not sft and not rl and trained:
+        raw_losses = trained.get("rl_losses") or []
+        if raw_losses:
+            sft_losses_fb = trained.get("sft_loss") or trained.get("sft_losses") or []
+            suffix = f"  [{algo_label}]" if algo_label else ""
+            plt.figure(figsize=(7, 4))
+            if isinstance(sft_losses_fb, list) and sft_losses_fb:
+                plt.plot(list(range(1, len(sft_losses_fb) + 1)),
+                         [float(v) for v in sft_losses_fb],
+                         label="SFT loss (warm-start)", color="#8e44ad", linewidth=1.6, marker="o")
+                offset = len(sft_losses_fb)
+            else:
+                offset = 0
+            rl_x = list(range(offset + 1, offset + 1 + len(raw_losses)))
+            plt.plot(rl_x, [float(v) for v in raw_losses],
+                     label="RL policy loss (from trained_results.json)",
+                     color="#c0392b", linewidth=1.4)
+            plt.title(f"Loss Curve (SFT + RL){suffix}")
+            plt.xlabel("Update step")
+            plt.ylabel("Loss")
+            plt.legend()
+            plt.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(out_path, dpi=150)
+            plt.close()
+            return True
+
     if not sft and not rl:
         return _placeholder_plot(
             out_path, title="Loss Curve", xlabel="Update step", ylabel="Loss",
-            note="No training_logs.jsonl found — run scripts/train_trl.py to populate.",
+            note="No loss data found — run scripts/train_trl.py first.",
         )
     sft_steps: List = []
     suffix = f"  [{algo_label}]" if algo_label else ""
@@ -281,8 +332,8 @@ def main():
         metrics_summary = _agent_summary(baseline)
 
     plots = [
-        ("reward_curve.png", lambda p: plot_reward_curve(training_logs, p, algo_label)),
-        ("loss_curve.png", lambda p: plot_loss_curve(training_logs, p, algo_label)),
+        ("reward_curve.png", lambda p: plot_reward_curve(training_logs, p, algo_label, trained)),
+        ("loss_curve.png", lambda p: plot_loss_curve(training_logs, p, algo_label, trained)),
         ("outage_comparison.png", lambda p: plot_outage_comparison(metrics_summary, p)),
         ("cascade_count_comparison.png", lambda p: plot_cascade_count_comparison(metrics_summary, p)),
         ("critical_job_completion.png", lambda p: plot_critical_job_completion(metrics_summary, p)),
