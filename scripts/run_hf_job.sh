@@ -22,7 +22,27 @@
 set -euo pipefail
 
 : "${HF_TOKEN:?HF_TOKEN env var is required (pass via --secrets HF_TOKEN)}"
-: "${HUB_MODEL_ID:?HUB_MODEL_ID env var is required (pass via -e HUB_MODEL_ID=user/repo)}"
+
+# HUB_MODEL_ID can be:
+#   "user/repo"   — used as-is
+#   "repo"        — username is resolved from HF_TOKEN via whoami()
+#   unset         — defaults to "clustermind-lora", username from token
+HUB_REPO_NAME="${HUB_REPO_NAME:-${HUB_MODEL_ID:-clustermind-lora}}"
+if [[ "${HUB_REPO_NAME}" != */* ]]; then
+    echo "[hf-job] resolving HF username from token..."
+    pip install --quiet --no-cache-dir "huggingface_hub>=0.25"
+    HF_USERNAME="$(python - <<'PY'
+import os
+from huggingface_hub import whoami
+print(whoami(token=os.environ["HF_TOKEN"])["name"])
+PY
+)"
+    HUB_MODEL_ID="${HF_USERNAME}/${HUB_REPO_NAME}"
+    echo "[hf-job] resolved HUB_MODEL_ID=${HUB_MODEL_ID}"
+else
+    HUB_MODEL_ID="${HUB_REPO_NAME}"
+fi
+export HUB_MODEL_ID
 
 REPO_URL="${REPO_URL:-https://github.com/Kabeer-Scaler/META_RL_HACKATHON_CLUSTERMIND.git}"
 BRANCH="${BRANCH:-main}"
