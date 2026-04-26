@@ -44,9 +44,18 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 WORKDIR="${WORKDIR:-/work}"
-rm -rf "${WORKDIR}"
-git clone --depth=1 --branch "${BRANCH}" "${REPO_URL}" "${WORKDIR}"
-cd "${WORKDIR}"
+# If we're already inside a checkout of this repo, reuse it. Otherwise clone.
+if [ -d "${WORKDIR}/.git" ] && [ -f "${WORKDIR}/scripts/train_trl.py" ]; then
+    echo "[hf-job] reusing existing repo at ${WORKDIR}"
+    cd "${WORKDIR}"
+    git -C "${WORKDIR}" fetch --quiet origin "${BRANCH}" && \
+        git -C "${WORKDIR}" checkout --quiet "origin/${BRANCH}" -- scripts/ clustermind/ requirements-train.txt 2>/dev/null || true
+else
+    echo "[hf-job] cloning ${REPO_URL}@${BRANCH} -> ${WORKDIR}"
+    rm -rf "${WORKDIR}"
+    git clone --depth=1 --branch "${BRANCH}" "${REPO_URL}" "${WORKDIR}"
+    cd "${WORKDIR}"
+fi
 
 echo "[hf-job] installing training deps..."
 pip install --no-cache-dir -r requirements-train.txt
