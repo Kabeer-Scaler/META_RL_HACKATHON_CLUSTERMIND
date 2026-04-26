@@ -855,6 +855,8 @@ def run_llm_pipeline(
     chosen_algo, algo_note = _resolve_rl_algo(rl_algo)
     print(f"[LLM-RL] algorithm={chosen_algo} -- {algo_note}")
     print(f"[LLM-RL] {rl_episodes} live episodes...")
+    # PPO is REINFORCE + KL penalty against frozen base; GRPO/REINFORCE don't use KL.
+    kl_coef = 0.05 if chosen_algo == "ppo" else 0.0
     baseline = 0.0
     bopt_alpha = 0.1
     rl_rewards: List[float] = []
@@ -900,29 +902,47 @@ def run_llm_pipeline(
         return steps, total_r, info
 
     # --- replay one step at a time; backprop immediately; peak mem = 1 forward pass ---
-    def _accum_grads(steps, advantage: float) -> int:
+    def _accum_grads(steps, advantage: float, kl_coef: float = 0.0) -> Tuple[int, float]:
         """Accumulate gradients across episode steps (one step at a time).
-        Returns number of steps that produced a gradient."""
+        Returns (n_steps_with_grads, total_loss_value)."""
         n = 0
+        total_loss = 0.0
         for input_ids, generated in steps:
+            # Need at least 2 generated tokens: logits[t] predicts position t+1,
+            # so we score generated[1:] against logits[:-1] (autoregressive likelihood).
+            if generated.shape[0] < 2:
+                continue
             with torch.no_grad():
                 kv = model(input_ids, use_cache=True).past_key_values
             with torch.enable_grad():
                 out = model(generated.unsqueeze(0), past_key_values=kv, use_cache=False)
-                lp = torch.log_softmax(out.logits[0].float(), dim=-1)[
-                    torch.arange(generated.shape[0], device=generated.device), generated
-                ].sum()
+                log_probs = torch.log_softmax(out.logits[0, :-1].float(), dim=-1)
+                positions = torch.arange(generated.shape[0] - 1, device=generated.device)
+                lp = log_probs[positions, generated[1:]].sum()
                 step_loss = -lp * float(advantage) / max(1, len(steps))
+                if kl_coef > 0.0:
+                    # Reference policy = base model (LoRA disabled). README §14 advertises
+                    # PPO as REINFORCE + KL penalty against this frozen reference.
+                    with model.disable_adapter():
+                        with torch.no_grad():
+                            kv_ref = model(input_ids, use_cache=True).past_key_values
+                            out_ref = model(generated.unsqueeze(0), past_key_values=kv_ref, use_cache=False)
+                            log_probs_ref = torch.log_softmax(out_ref.logits[0, :-1].float(), dim=-1)
+                            lp_ref = log_probs_ref[positions, generated[1:]].sum()
+                    kl_term = (lp - lp_ref) / max(1, len(steps))
+                    step_loss = step_loss + kl_coef * kl_term
             step_loss.backward()
+            total_loss += float(step_loss.detach().item())
             del out, lp, step_loss, kv
             n += 1
-        return n
+        return n, total_loss
 
     for ep in range(rl_episodes):
         scenario = scenarios[ep % len(scenarios)]
         level = levels[ep % len(levels)]
         seed = seed_base + 9000 + ep
 
+        mean_r = std_r = None  # populated by GRPO branch only
         if chosen_algo == "grpo":
             group_data = []
             for k in range(grpo_group_size):
@@ -935,24 +955,27 @@ def run_llm_pipeline(
             total_return = mean_r
             optim.zero_grad()
             n_grads = 0
+            group_loss = 0.0
             for steps, R, _ in group_data:
                 adv = (R - mean_r) / std_r
-                n_grads += _accum_grads(steps, adv)
+                ng, lv = _accum_grads(steps, adv, kl_coef=kl_coef)
+                n_grads += ng
+                group_loss += lv
             if n_grads > 0:
                 torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
                 optim.step()
-                rl_losses.append(float(sum(returns) / len(returns)))
+                rl_losses.append(group_loss / max(1, len(group_data)))
             del group_data
         else:
             steps, total_return, info = _collect_episode(seed=seed, scenario=scenario, level=level)
             baseline = (1 - bopt_alpha) * baseline + bopt_alpha * total_return
             advantage = total_return - baseline
             optim.zero_grad()
-            n_grads = _accum_grads(steps, advantage)
+            n_grads, ep_loss = _accum_grads(steps, advantage, kl_coef=kl_coef)
             if n_grads > 0:
                 torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
                 optim.step()
-                rl_losses.append(float(total_return))
+                rl_losses.append(ep_loss)
             del steps
 
         if torch.cuda.is_available():
@@ -977,7 +1000,11 @@ def run_llm_pipeline(
             "guardrail_violations": snap.get("guardrail_violations", 0),
         })
         if (ep + 1) % 2 == 0:
-            print(f"[LLM-RL] ep {ep+1}/{rl_episodes} reward={total_return:+.2f} baseline={baseline:+.2f}")
+            if chosen_algo == "grpo":
+                print(f"[LLM-RL] ep {ep+1}/{rl_episodes} reward={total_return:+.2f} "
+                      f"group_mean={mean_r:+.2f} group_std={std_r:.3f}")
+            else:
+                print(f"[LLM-RL] ep {ep+1}/{rl_episodes} reward={total_return:+.2f} baseline={baseline:+.2f}")
 
     # ---- LLM-path evaluation on held-out seeds ----
     print(f"[LLM-EVAL] {eval_episodes} held-out evaluation episodes...")
@@ -1003,8 +1030,11 @@ def run_llm_pipeline(
             )
             ids = tok(text, return_tensors="pt", truncation=True, max_length=512).to(_device)
             with torch.no_grad():
+                # Pass sampling params as None so transformers stops warning that
+                # the model's gen_config defaults are being ignored under do_sample=False.
                 gen = model.generate(
                     **ids, max_new_tokens=64, do_sample=False,
+                    temperature=None, top_p=None, top_k=None,
                     pad_token_id=tok.eos_token_id,
                 )
             decoded = tok.decode(gen[0][ids["input_ids"].shape[-1]:], skip_special_tokens=True)
@@ -1045,7 +1075,7 @@ def run_llm_pipeline(
         "rl_algo": chosen_algo,
         "rl_algo_note": algo_note,
         "grpo_group_size": grpo_group_size if chosen_algo == "grpo" else None,
-        "kl_coef": kl_coef,
+        "kl_coef": kl_coef if kl_coef > 0 else None,
         "trainable_params": trainable,
         "total_params": total,
         "frozen_base": True,
