@@ -11,6 +11,10 @@ sentencepiece
 einops
 datasets
 huggingface_hub>=0.25
+# Unsloth — 2x faster training, lower VRAM. Pulled from git so it picks up
+# the latest CUDA/torch matrix; the [colab-new] extra is the cleanest install
+# path on fresh containers (works on HF Jobs, Colab, Kaggle).
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
 
 # Repo deps
 pydantic>=2.5

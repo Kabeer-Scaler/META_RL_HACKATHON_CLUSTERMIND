@@ -586,6 +586,7 @@ def run_llm_pipeline(
     rl_algo: str = "auto",
     grpo_group_size: int = 2,
     hub_model_id: Optional[str] = None,
+    engine: str = "auto",
 ):
     if not _try_llm_stack():
         print("[LLM] transformers/peft not installed — falling back to policy-net mode.")
@@ -625,45 +626,80 @@ def run_llm_pipeline(
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
-    # Load in 4-bit QLoRA pinned to cuda:0 — ~250 MB VRAM vs ~1 GB fp16.
-    # device_map={"": 0} prevents any layer from being offloaded to CPU.
-    _loaded_4bit = False
-    if _use_gpu:
+    # ------------------------------------------------------------------
+    # Engine selection: Unsloth -> Transformers+BitsAndBytes (fallback).
+    # Unsloth gives 2x faster training and ~30% lower VRAM via fused
+    # kernels. We attach LoRA via FastLanguageModel.get_peft_model when
+    # Unsloth loads, else via peft.get_peft_model on the HF model.
+    # ------------------------------------------------------------------
+    _used_engine = "transformers"
+    _model_loaded = False
+    if engine in ("auto", "unsloth") and _use_gpu:
         try:
-            from transformers import BitsAndBytesConfig as _BnBC
-            from peft import prepare_model_for_kbit_training as _prep_kbit
-            _bnb = _BnBC(
+            from unsloth import FastLanguageModel  # type: ignore
+            print(f"[LLM] engine=unsloth — loading {base_model}")
+            model, tok = FastLanguageModel.from_pretrained(
+                model_name=base_model,
+                max_seq_length=512,
+                dtype=None,            # auto: bf16 on Hopper, fp16 on T4
                 load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
             )
-            model = AutoModelForCausalLM.from_pretrained(
-                base_model, quantization_config=_bnb, device_map=_dmap,
+            if tok.pad_token is None:
+                tok.pad_token = tok.eos_token
+            model = FastLanguageModel.get_peft_model(
+                model,
+                r=8, lora_alpha=16, lora_dropout=0.05, bias="none",
+                target_modules=["q_proj", "v_proj"],
+                use_gradient_checkpointing="unsloth",
+                random_state=seed_base,
             )
-            model = _prep_kbit(model, use_gradient_checkpointing=True)
-            _loaded_4bit = True
-            print(f"[LLM] loaded in 4-bit QLoRA mode on {_device}")
+            _model_loaded = True
+            _used_engine = "unsloth"
+            print(f"[LLM] loaded via Unsloth on {_device} (4-bit + LoRA)")
+        except ImportError:
+            print("[LLM] unsloth not installed, falling back to transformers+bitsandbytes")
         except Exception as _e:
-            print(f"[LLM] 4-bit load failed ({_e}), falling back to float16")
-    if not _loaded_4bit:
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model,
-            torch_dtype=torch.float16 if _use_gpu else torch.float32,
-            device_map=_dmap,
-        )
-        for p in model.parameters():
-            p.requires_grad = False
-        model.enable_input_require_grads()
-        model.gradient_checkpointing_enable()
-    print(f"[LLM] model device: {next(model.parameters()).device}")
+            print(f"[LLM] unsloth load failed ({_e}), falling back to transformers+bitsandbytes")
 
-    lora_config = LoraConfig(
-        r=8, lora_alpha=16, lora_dropout=0.05, bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=["q_proj", "v_proj"],
-    )
-    model = get_peft_model(model, lora_config)
+    if not _model_loaded:
+        # Load in 4-bit QLoRA pinned to cuda:0 — ~250 MB VRAM vs ~1 GB fp16.
+        # device_map={"": 0} prevents any layer from being offloaded to CPU.
+        _loaded_4bit = False
+        if _use_gpu:
+            try:
+                from transformers import BitsAndBytesConfig as _BnBC
+                from peft import prepare_model_for_kbit_training as _prep_kbit
+                _bnb = _BnBC(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.float16,
+                )
+                model = AutoModelForCausalLM.from_pretrained(
+                    base_model, quantization_config=_bnb, device_map=_dmap,
+                )
+                model = _prep_kbit(model, use_gradient_checkpointing=True)
+                _loaded_4bit = True
+                print(f"[LLM] loaded in 4-bit QLoRA mode on {_device}")
+            except Exception as _e:
+                print(f"[LLM] 4-bit load failed ({_e}), falling back to float16")
+        if not _loaded_4bit:
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                torch_dtype=torch.float16 if _use_gpu else torch.float32,
+                device_map=_dmap,
+            )
+            for p in model.parameters():
+                p.requires_grad = False
+            model.enable_input_require_grads()
+            model.gradient_checkpointing_enable()
+        lora_config = LoraConfig(
+            r=8, lora_alpha=16, lora_dropout=0.05, bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=["q_proj", "v_proj"],
+        )
+        model = get_peft_model(model, lora_config)
+    print(f"[LLM] model device: {next(model.parameters()).device}  engine={_used_engine}")
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
     print(f"[LLM] trainable params: {trainable:,} / {total:,} ({trainable/total*100:.2f}%)")
@@ -686,37 +722,83 @@ def run_llm_pipeline(
     rollouts = collect_heuristic_rollouts(n_episodes=sft_episodes, seed_base=seed_base + 100)
     print(f"[LLM-SFT] {len(rollouts)} filtered transitions; running cross-entropy SFT")
     sft_steps = min(64 if quick else 256, len(rollouts))
-    for epoch in range(2 if quick else 3):
-        random.shuffle(rollouts)
-        running_loss = 0.0
-        for i, rec in enumerate(rollouts[:sft_steps]):
-            prompt = build_prompt(rec.obs)
-            target_action = {
-                "action_type": rec.action.action_type.value,
-                "job_id": rec.action.job_id, "node_id": rec.action.node_id,
-                "source_node_id": rec.action.source_node_id,
-                "target_node_id": rec.action.target_node_id,
-                "zone_id": rec.action.zone_id,
-                "intensity": rec.action.intensity.value if rec.action.intensity else None,
-            }
-            target_str = json.dumps(target_action)
-            full = (
-                tok.apply_chat_template(
-                    [{"role": "system", "content": prompt["system"]},
-                     {"role": "user", "content": prompt["user"]}],
-                    tokenize=False, add_generation_prompt=True,
-                )
-                + target_str
+    sft_epochs = 2 if quick else 3
+
+    def _format_sft_text(rec) -> str:
+        prompt = build_prompt(rec.obs)
+        target_action = {
+            "action_type": rec.action.action_type.value,
+            "job_id": rec.action.job_id, "node_id": rec.action.node_id,
+            "source_node_id": rec.action.source_node_id,
+            "target_node_id": rec.action.target_node_id,
+            "zone_id": rec.action.zone_id,
+            "intensity": rec.action.intensity.value if rec.action.intensity else None,
+        }
+        target_str = json.dumps(target_action)
+        return tok.apply_chat_template(
+            [{"role": "system", "content": prompt["system"]},
+             {"role": "user", "content": prompt["user"]},
+             {"role": "assistant", "content": target_str}],
+            tokenize=False,
+        )
+
+    # Try Hugging Face TRL SFTTrainer first; fall back to a pure-torch loop.
+    _used_trl_sft = False
+    if engine in ("auto", "trl", "unsloth"):
+        try:
+            from trl import SFTTrainer, SFTConfig
+            from datasets import Dataset
+            random.shuffle(rollouts)
+            sft_corpus = [{"text": _format_sft_text(r)} for r in rollouts[:sft_steps]]
+            sft_dataset = Dataset.from_list(sft_corpus)
+            sft_args = SFTConfig(
+                output_dir=os.path.join(os.path.dirname(out_adapter_dir), "_sft_tmp"),
+                per_device_train_batch_size=1,
+                gradient_accumulation_steps=4,
+                num_train_epochs=sft_epochs,
+                learning_rate=2e-4,
+                logging_steps=8,
+                max_seq_length=512,
+                dataset_text_field="text",
+                report_to="none",
+                save_strategy="no",
+                packing=False,
+                bf16=torch.cuda.is_bf16_supported() if _use_gpu else False,
+                fp16=(not torch.cuda.is_bf16_supported()) if _use_gpu else False,
             )
-            ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(_device)
-            out = model(**ids, labels=ids["input_ids"], use_cache=False)
-            optim.zero_grad()
-            out.loss.backward()
-            optim.step()
-            running_loss += float(out.loss.item())
-        avg = running_loss / max(1, sft_steps)
-        print(f"[LLM-SFT] epoch {epoch+1}: loss={avg:.4f}")
-        _log({"phase": "sft", "epoch": epoch + 1, "loss": avg, "reward": None})
+            sft_trainer = SFTTrainer(
+                model=model,
+                train_dataset=sft_dataset,
+                args=sft_args,
+                tokenizer=tok,
+            )
+            sft_train_out = sft_trainer.train()
+            _used_trl_sft = True
+            avg_loss = float(sft_train_out.training_loss)
+            print(f"[LLM-SFT] SFT done via trl.SFTTrainer  avg_loss={avg_loss:.4f}")
+            _log({"phase": "sft", "epoch": sft_epochs, "loss": avg_loss, "reward": None,
+                  "trainer": "trl.SFTTrainer"})
+        except ImportError as _e:
+            print(f"[LLM-SFT] trl not available ({_e}); using pure-torch SFT loop")
+        except Exception as _e:
+            print(f"[LLM-SFT] trl SFTTrainer failed ({_e}); using pure-torch SFT loop")
+
+    if not _used_trl_sft:
+        for epoch in range(sft_epochs):
+            random.shuffle(rollouts)
+            running_loss = 0.0
+            for i, rec in enumerate(rollouts[:sft_steps]):
+                full = _format_sft_text(rec)
+                ids = tok(full, return_tensors="pt", truncation=True, max_length=512).to(_device)
+                out = model(**ids, labels=ids["input_ids"], use_cache=False)
+                optim.zero_grad()
+                out.loss.backward()
+                optim.step()
+                running_loss += float(out.loss.item())
+            avg = running_loss / max(1, sft_steps)
+            print(f"[LLM-SFT] epoch {epoch+1}: loss={avg:.4f}")
+            _log({"phase": "sft", "epoch": epoch + 1, "loss": avg, "reward": None,
+                  "trainer": "torch.AdamW (custom)"})
 
     # Free SFT activation memory before switching to RL rollouts.
     gc.collect()
@@ -724,6 +806,13 @@ def run_llm_pipeline(
         torch.cuda.empty_cache()
 
     # ---- RL on adapter ----
+    # NOTE: We hand-roll GRPO/PPO/REINFORCE rather than using
+    # trl.GRPOTrainer / trl.PPOTrainer because TRL's trainers hold every
+    # trajectory's full computation graph in memory simultaneously, which
+    # OOMs on a 16 GB T4 for 0.5B model + 64-token completions × K
+    # trajectories. Our two-phase loop (no-grad rollout collection →
+    # per-step backward) is mathematically equivalent and fits on T4.
+    # SFT above runs through trl.SFTTrainer when --engine permits.
     _gmem()
     chosen_algo, algo_note = _resolve_rl_algo(rl_algo)
     print(f"[LLM-RL] algorithm={chosen_algo} -- {algo_note}")
@@ -958,6 +1047,8 @@ tags:
 - reinforcement-learning
 - lora
 - peft
+- trl
+- unsloth
 - {chosen_algo}
 - clustermind
 license: apache-2.0
@@ -969,10 +1060,18 @@ Trained on the **ClusterMind Chaos Arena** environment via SFT warm-start +
 online RL ({chosen_algo}). Base weights are frozen; only the LoRA adapter is
 updated (r=8, target_modules=["q_proj","v_proj"]).
 
+## Training stack
+- **Model load + LoRA:** `{_used_engine}` (Unsloth `FastLanguageModel` when available, else `transformers` + `bitsandbytes` 4-bit + `peft`)
+- **SFT phase:** `{'trl.SFTTrainer' if _used_trl_sft else 'pure-torch AdamW loop'}`
+- **RL phase:** in-tree GRPO/PPO/REINFORCE loop (TRL's `GRPOTrainer` OOMs on T4 because it holds all K trajectories' computation graphs simultaneously; ours is two-phase: no-grad rollout collection then per-step backward)
+- **Hub push:** `huggingface_hub.push_to_hub` + `upload_file`
+
 ## Training summary
 | field | value |
 |---|---|
 | base model | `{base_model}` |
+| engine | `{_used_engine}` |
+| SFT trainer | `{'trl.SFTTrainer' if _used_trl_sft else 'torch.AdamW (custom)'}` |
 | RL algo | `{chosen_algo}` ({algo_note}) |
 | trainable params | {trainable:,} / {total:,} ({trainable/total*100:.2f}%) |
 | SFT episodes | {sft_episodes} |
@@ -1061,6 +1160,12 @@ def main():
                         help="HF Hub repo to push the trained LoRA adapter to, "
                              "e.g. 'your-username/clustermind-lora'. "
                              "Requires HF_TOKEN env var or Kaggle/Colab secret.")
+    parser.add_argument("--engine", type=str, default="auto",
+                        choices=["auto", "unsloth", "trl", "transformers"],
+                        help="Training stack: auto picks Unsloth + TRL SFTTrainer "
+                             "if available, falls back to transformers + bitsandbytes. "
+                             "RL phase always uses the in-tree GRPO loop (TRL's "
+                             "GRPOTrainer OOMs on T4).")
     args = parser.parse_args()
 
     # --full takes precedence over --quick and bumps episode budgets.
@@ -1103,6 +1208,7 @@ def main():
             rl_algo=args.rl_algo,
             grpo_group_size=args.grpo_group_size,
             hub_model_id=args.hub_model_id or "",
+            engine=args.engine,
         )
     else:
         run_policy_net_pipeline(
